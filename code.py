@@ -17,8 +17,9 @@ import urllib
 import urlparse
 
 urls = {
-    '^/$': 'view',
-    '^/(.+)$': 'load',
+    r'^/$': 'view',
+    r'^/list$': 'list_urls',
+    r'^/(.{6})$': 'load',
     }
 
 def dispatch(urls, s):
@@ -36,13 +37,15 @@ class page:
         getattr(self, os.environ['REQUEST_METHOD'], self.error404)(groups)
     def error404(self, groups):
         print '404'
- 
-class view(page):
-    chars = "1234567890abcdefghijklmnopqrstuvwxyz"
+
+class output_page(page):
     def __init__(self, groups=None):
         print 'Content-type: text/html'
         print
         page.__init__(self, groups)
+
+class view(output_page):
+    chars = "1234567890abcdefghijklmnopqrstuvwxyz"
     def make_id(self, length=6):
         return ''.join(random.sample(self.chars, length))
     def GET(self, groups):
@@ -94,6 +97,17 @@ class load(page):
         print 'Status: 301 moved permanently'
         print 'Location: ', url
         print
+
+class list_urls(output_page):
+    def GET(self, groups):
+        print """<html><head><title>Tinyification list</title></head><body><ul>"""
+        conn = sqlite3.connect(get_db_path())
+        c = conn.cursor()
+        c.execute("SELECT id, url FROM urls")
+        for row in c.fetchall():
+            full = urlparse.urljoin(urlparse.urlunparse(('http', os.environ['HTTP_HOST'], os.environ['REQUEST_URI'], '', '', '')), row[0])
+            print """<li><a href="%s">%s</a> == <a href="%s">%s</a></li>""" % (full, full, row[1], row[1])
+        print """</ul></body></html>"""
 
 if __name__ == '__main__':
     dispatch(urls, os.environ['PATH_INFO'])
